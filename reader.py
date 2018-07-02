@@ -1,7 +1,11 @@
 import h5py
 import os
+import sys
 import tables
 import math
+from datetime import datetime
+
+startTime = datetime.now()
 
 data_path = './data_small'
 
@@ -17,6 +21,20 @@ def get_lat_long_artist(path):
     data = (f_root.artist_latitude[0], f_root.artist_longitude[0], f_root.artist_name[0].decode('UTF-8'))
     f.close()
     return data
+
+# adapted from https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
+def progress(count, total, status=''):
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '#' * filled_len + '.' * (bar_len - filled_len)
+    time_diff = datetime.now() - startTime
+    time_str = ' '+str(time_diff).replace(',', '')
+    sys.stdout.write("\033[K")
+    sys.stdout.write('%s [%s] %s%s   %s\r' % (time_str, bar, percents, '%', status))
+    sys.stdout.flush()
+
 
 all_file_paths = []
 artist_neighbors = {}
@@ -34,19 +52,21 @@ for h1 in root:
                 all_file_paths.append(path)
 
 num_files = len(all_file_paths)
-tenth_of_files = math.floor(num_files / 10)
-print('scanned %d files' % num_files)
+print('%d files' % num_files)
 
+unavailable_locations = []
+count = 0
 for p1 in all_file_paths:
-    count = 0
+    count += 1
     lat1, long1, a1 = get_lat_long_artist(p1)
     if math.isnan(lat1) or math.isnan(long1):
+        unavailable_locations.append(a1)
         continue
     for p2 in all_file_paths:
-        count += 1
-        if count % tenth_of_files == 0:
-            print('#', end='', flush=True)
         lat2, long2, a2 = get_lat_long_artist(p2)
         if math.isnan(lat2) or math.isnan(long2):
             continue
-    print(' completed %s' % a1)
+    progress(count, num_files, a1)
+
+# print('locations unavailable for', unavailable_locations)
+print('\nElapsed time:',datetime.now() - startTime)

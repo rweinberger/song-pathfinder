@@ -22,19 +22,19 @@ class Builder():
     
     def createSongEntry(entry, entries, distance_fn, threshold):
         found_neighbors = []
-        for (e in entries):
-            if ( (e != entry) and (is_neighbor(entry, e, distance_fn, threshold):
+        for e in entries:
+            if ( (e != entry) and (is_neighbor(entry, e, distance_fn, threshold) ) ):
                 found_neighbors.append(e)
         new_entry = Song(
-                            title     = entry.title,
-                            artist    = entry.artist,
-                            neighbors = found_neighbors
-                        )
+            title = entry.title, 
+            artist = entry.artist, 
+            neighbors = found_neighbors
+        )
         return new_entry
 
     def process_entries(Builder.physical_distance, threshold):
         p_entries = []
-        for (entry in entries):
+        for entry in entries:
             p_entries.append(createSongEntry(entry, entries, Builder.physical_distance, threshold))
 
 if __name__ == "__main__":
