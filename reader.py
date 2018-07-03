@@ -114,7 +114,7 @@ def worker(l, send_end):
 def execute_workers(cores, paths):
     pipes = []
     processes = []
-    split_paths = np.split(paths, cores)
+    split_paths = np.array_split(np.array(paths), cores, axis=0)
     for i in range(cores):
         pipes.append(multiprocessing.Pipe(False))
     for i in range(cores):
@@ -128,7 +128,7 @@ def execute_workers(cores, paths):
 
     for i in range(cores):
         result.extend(pipes[i][0].recv())
-
+    print(len(result))
     return result
 
 if __name__ == "__main__":
