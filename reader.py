@@ -15,6 +15,11 @@ DATA_PATH = './data_small'
 START_TIME = datetime.now()
 MAX_HOP_KM = 500
 
+# class Song(Document):
+#     title = StringField(required=True, max_length=200)
+#     artist = StringField(required=True)
+#     neighbors = ListField(ReferenceField(Song, reverse_delete_rule=mongoengine.PULL))
+
 def get_dirs(path):
     return [ name for name in os.listdir(path) if os.path.isdir(os.path.join(str(path), name))]
 
@@ -71,14 +76,13 @@ def find_file_paths():
     print('%d files' % num_files)
     return paths
 
-artists = {}
-artist_neighbors = {}
-
-def populate_db(paths):
+def build_data(paths, i_start, i_end):
+    artists = {}
+    artist_neighbors = {}
     num_files = len(paths)
     unavailable_locations = []
     count = 0
-    for p1 in paths:
+    for p1 in paths[i_start:i_end]:
         count += 1
         lat1, long1, a1, s1 = get_lat_long_artist_song(p1)
         if math.isnan(lat1) or math.isnan(long1):
@@ -93,43 +97,56 @@ def populate_db(paths):
                     continue
                 dist = get_distance_coordinate(lat1, long1, lat2, long2)
                 if dist <= MAX_HOP_KM:
-                    add_entry((a1, s1, lat1, long1), (a2, s2, lat2, long2))
-        progress(count, num_files, a1)
+                    add_entry((a1, s1, lat1, long1), (a2, s2, lat2, long2), artist_neighbors)
+        progress(count, 80, a1)
     # print('locations unavailable for', unavailable_locations)
-    print('\nElapsed time:',datetime.now() - START_TIME)
+    # print('\nElapsed time:',datetime.now() - START_TIME)
+    return (artists, artist_neighbors)
 
-def add_entry(artist1, artist2):
+def add_entry(artist1, artist2, artist_neighbors):
     a1, s1, lat1, long1 = artist1
     a2, s2, lat2, long2 = artist2
     artist_neighbors[a1].append(artist2)
 
-# class Song(Document):
-#     title = StringField(required=True, max_length=200)
-#     artist = StringField(required=True)
-#     neighbors = ListField(ReferenceField(Song, reverse_delete_rule=mongoengine.PULL))
-def worker(l, send_end):
-    distances = populate_db(l)
-    send_end.send(distances)
+def worker(paths, i_start, i_end, send_end):
+    data = build_data(paths, i_start, i_end)
+    send_end.send(data)
+
+def find_indices(i, n, c):
+    increment = math.ceil(n/c)
+    start = i * increment
+    end = start + increment
+    if end >= n:
+        end = None
+    print(i, start,end)
+    return (start, end)
 
 def execute_workers(cores, paths):
     pipes = []
     processes = []
-    split_paths = np.array_split(np.array(paths), cores, axis=0)
+    num_paths = len(paths)
+    # split_paths = np.array_split(np.array(paths), cores, axis=0)
     for i in range(cores):
         pipes.append(multiprocessing.Pipe(False))
     for i in range(cores):
-        processes.append(multiprocessing.Process(target=worker, args=(split_paths[i], pipes[i][1])))
+        i_start, i_end = find_indices(i, num_paths, cores)
+        processes.append(multiprocessing.Process(target=worker, args=(paths, i_start, i_end, pipes[i][1])))
     for process in processes:
         process.start()
     for process in processes:
         process.join()
 
-    result = []
+    artists = {}
+    artist_neighbors = {}
+
+    print('\ndone receiving')
 
     for i in range(cores):
-        result.extend(pipes[i][0].recv())
-    print(len(result))
-    return result
+        artists.update(pipes[i][0].recv()[0])
+        artist_neighbors.update(pipes[i][0].recv()[1])
+
+    # print(len(result))
+    return (artists, artist_neighbors)
 
 if __name__ == "__main__":
     # client = MongoClient(HOST, PORT_NUMBER)
@@ -137,12 +154,15 @@ if __name__ == "__main__":
     # connect('music_graph', host=HOST, port=PORT_NUMBER)
     CORES = 4
     paths = find_file_paths()
-    distances = execute_workers(CORES, paths)
-    # distances = populate_db(paths)
-    std = np.std(distances)
-    avg = np.average(distances)
-    print(std)
-    print(avg)
+    # data = build_data(paths, 0, None)
+    artists, artist_neighbors = execute_workers(CORES, paths)
+    print('-------')
+    print(artists)
+    # distances = build_data(paths)
+    # std = np.std(distances)
+    # avg = np.average(distances)
+    # print(std)
+    # print(avg)
 
 
 
