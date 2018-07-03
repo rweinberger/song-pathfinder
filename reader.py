@@ -15,6 +15,19 @@ def get_dirs(path):
 def get_files(path):
     return [f for f in os.listdir(path) if f.endswith('.h5')]
 
+def get_distance_coordinate(lat_1, long_1, lat_2, long_2):
+    #haversine formula
+    EARTH_RADIUS = 6371
+    d_lat = deg_to_rad(lat_2 - lat_1)
+    d_long= deg_to_rad(long_2 - long_1)
+    a = math.sin(d_lat/2) * math.sin(d_lat/2) + math.cos(deg_to_rad(lat_1)) * math.cos(deg_to_rad(lat_2)) * math.sin(d_long/2) * math.sin(d_long/2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    d = R * c
+    return d
+
+def deg_to_rad(deg):
+    return deg * (math.pi/180)
+
 def get_lat_long_artist(path):
     f = tables.open_file(path, mode='r')
     f_root = f.root.metadata.songs.cols
