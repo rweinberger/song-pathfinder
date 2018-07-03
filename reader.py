@@ -13,6 +13,7 @@ PORT_NUMBER = 21017
 HOST = 'localhost'
 DATA_PATH = './data_small'
 START_TIME = datetime.now()
+MAX_HOP_KM = 500
 
 def get_dirs(path):
     return [ name for name in os.listdir(path) if os.path.isdir(os.path.join(str(path), name))]
@@ -33,10 +34,10 @@ def get_distance_coordinate(lat_1, long_1, lat_2, long_2):
 def deg_to_rad(deg):
     return deg * (math.pi/180)
 
-def get_lat_long_artist(path):
+def get_lat_long_artist_song(path):
     f = tables.open_file(path, mode='r')
     f_root = f.root.metadata.songs.cols
-    data = (f_root.artist_latitude[0], f_root.artist_longitude[0], f_root.artist_name[0].decode('UTF-8'))
+    data = (f_root.artist_latitude[0], f_root.artist_longitude[0], f_root.artist_name[0].decode('UTF-8'), f_root.title[0].decode('UTF-8'))
     f.close()
     return data
 
@@ -70,28 +71,37 @@ def find_file_paths():
     print('%d files' % num_files)
     return paths
 
+artists = {}
+artist_neighbors = {}
+
 def populate_db(paths):
-    distances = []
     num_files = len(paths)
-    artist_neighbors = {}
     unavailable_locations = []
     count = 0
     for p1 in paths:
         count += 1
-        lat1, long1, a1 = get_lat_long_artist(p1)
+        lat1, long1, a1, s1 = get_lat_long_artist_song(p1)
         if math.isnan(lat1) or math.isnan(long1):
             unavailable_locations.append(a1)
             continue
+        artists[a1] = (a1, s1, lat1, long1)
+        artist_neighbors[a1] = []
         for p2 in paths:
-            lat2, long2, a2 = get_lat_long_artist(p2)
-            if math.isnan(lat2) or math.isnan(long2):
-                continue
-            # print(get_distance_coordinate(lat1, long1, lat2, long2))
-            distances.append(get_distance_coordinate(lat1, long1, lat2, long2))
+            if p2 != p1:
+                lat2, long2, a2, s2 = get_lat_long_artist_song(p2)
+                if math.isnan(lat2) or math.isnan(long2):
+                    continue
+                dist = get_distance_coordinate(lat1, long1, lat2, long2)
+                if dist <= MAX_HOP_KM:
+                    add_entry((a1, s1, lat1, long1), (a2, s2, lat2, long2))
         progress(count, num_files, a1)
     # print('locations unavailable for', unavailable_locations)
     print('\nElapsed time:',datetime.now() - START_TIME)
-    return distances
+
+def add_entry(artist1, artist2):
+    a1, s1, lat1, long1 = artist1
+    a2, s2, lat2, long2 = artist2
+    artist_neighbors[a1].append(artist2)
 
 # class Song(Document):
 #     title = StringField(required=True, max_length=200)
