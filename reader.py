@@ -4,6 +4,7 @@ import os
 import sys
 import tables
 import math
+import multiprocessing
 from datetime import datetime
 from pymongo import MongoClient
 from mongoengine import *
@@ -96,14 +97,38 @@ def populate_db(paths):
 #     title = StringField(required=True, max_length=200)
 #     artist = StringField(required=True)
 #     neighbors = ListField(ReferenceField(Song, reverse_delete_rule=mongoengine.PULL))
+def worker(l, send_end):
+    distances = populate_db(l)
+    send_end.send(distances)
+
+def execute_workers(cores, paths):
+    pipes = []
+    processes = []
+    split_paths = np.split(paths, cores)
+    for i in range(cores):
+        pipes.append(multiprocessing.Pipe(False))
+    for i in range(cores):
+        processes.append(multiprocessing.Process(target=worker, args=(split_paths[i], pipes[i][1])))
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join()
+
+    result = []
+
+    for i in range(cores):
+        result.extend(pipes[i][0].recv())
+
+    return result
 
 if __name__ == "__main__":
     # client = MongoClient(HOST, PORT_NUMBER)
     # db = client['music_graph']
     # connect('music_graph', host=HOST, port=PORT_NUMBER)
-
+    CORES = 4
     paths = find_file_paths()
-    distances = populate_db(paths)
+    distances = execute_workers(CORES, paths)
+    # distances = populate_db(paths)
     std = np.std(distances)
     avg = np.average(distances)
     print(std)
